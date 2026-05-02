@@ -32,11 +32,14 @@ String secBuffer = "";
 bool receivingMap = false;
 bool receivingSec = false;
 
-uint8_t secBinary[30000]; // adjust if needed
+uint8_t secBinary[20000]; // adjust if needed
 int secBinaryLen = 0;
 
-uint8_t mapBinary[30000]; // adjust if needed
+uint8_t mapBinary[20000]; // adjust if needed
 int mapBinaryLen = 0;
+
+const double scale = 0.4;
+const float ZOOM = 3;
 
 class MyServerCallbacks : public BLEServerCallbacks
 {
@@ -178,111 +181,198 @@ bool originSet = false;
 double originLat = 0.0;
 double originLon = 0.0;
 
+// ── Shared screen-space buffers — no allocation per frame ──
+static int16_t _scrX[1024], _scrY[1024];
+static int16_t _segX[256], _segY[256];
+
+// ── Draw a filled quad between two segments (no loops, 2 triangles only) ──
+inline void drawSegmentQuad(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
+                            uint16_t color, float halfW,
+                            int16_t &lx0, int16_t &ly0, int16_t &rx0, int16_t &ry0,
+                            int16_t &lx1, int16_t &ly1, int16_t &rx1, int16_t &ry1)
+{
+  float dx = x1 - x0, dy = y1 - y0;
+  float len = sqrtf(dx * dx + dy * dy);
+  if (len < 0.5f)
+  {
+    lx0 = rx0 = lx1 = rx1 = x0;
+    ly0 = ry0 = ly1 = ry1 = y0;
+    return;
+  }
+  float nx = -dy / len * halfW, ny = dx / len * halfW;
+  lx0 = x0 + nx;
+  ly0 = y0 + ny;
+  rx0 = x0 - nx;
+  ry0 = y0 - ny;
+  lx1 = x1 + nx;
+  ly1 = y1 + ny;
+  rx1 = x1 - nx;
+  ry1 = y1 - ny;
+  sprite.fillTriangle(lx0, ly0, rx0, ry0, lx1, ly1, color);
+  sprite.fillTriangle(rx0, ry0, lx1, ly1, rx1, ry1, color);
+}
+
+// ── Filled polyline: quad per segment + join triangle between segments ──
+void drawPolyFilled(int16_t *xs, int16_t *ys, int n, uint16_t color, float halfW)
+{
+  if (n < 2)
+    return;
+  int16_t pLx0, pLy0, pRx0, pRy0, pLx1, pLy1, pRx1, pRy1;
+  drawSegmentQuad(xs[0], ys[0], xs[1], ys[1], color, halfW,
+                  pLx0, pLy0, pRx0, pRy0, pLx1, pLy1, pRx1, pRy1);
+  for (int i = 1; i < n - 1; i++)
+  {
+    int16_t cLx0, cLy0, cRx0, cRy0, cLx1, cLy1, cRx1, cRy1;
+    drawSegmentQuad(xs[i], ys[i], xs[i + 1], ys[i + 1], color, halfW,
+                    cLx0, cLy0, cRx0, cRy0, cLx1, cLy1, cRx1, cRy1);
+    // seal the join gap with 2 triangles
+    sprite.fillTriangle(pLx1, pLy1, pRx1, pRy1, cLx0, cLy0, color);
+    sprite.fillTriangle(pRx1, pRy1, cLx0, cLy0, cRx0, cRy0, color);
+    pLx0 = cLx0;
+    pLy0 = cLy0;
+    pRx0 = cRx0;
+    pRy0 = cRy0;
+    pLx1 = cLx1;
+    pLy1 = cLy1;
+    pRx1 = cRx1;
+    pRy1 = cRy1;
+  }
+}
+
+// ── Hollow polyline: 2 clipped lines per segment, no circles ──
+// Replace drawPolyHollow with this:
+void drawPolyHollow(int16_t *xs, int16_t *ys, int n, uint16_t fillColor, uint16_t borderColor, float halfW) {
+  if (n < 2) return;
+
+  // 1. Draw filled dark body first (covers intersections cleanly)
+  for (int i = 0; i < n - 1; i++) {
+    float dx = xs[i+1]-xs[i], dy = ys[i+1]-ys[i];
+    float len = sqrtf(dx*dx + dy*dy);
+    if (len < 0.5f) continue;
+    float nx = -dy/len*halfW, ny = dx/len*halfW;
+    int16_t lx0=xs[i]+nx, ly0=ys[i]+ny;
+    int16_t rx0=xs[i]-nx, ry0=ys[i]-ny;
+    int16_t lx1=xs[i+1]+nx, ly1=ys[i+1]+ny;
+    int16_t rx1=xs[i+1]-nx, ry1=ys[i+1]-ny;
+    sprite.fillTriangle(lx0,ly0, rx0,ry0, lx1,ly1, fillColor);
+    sprite.fillTriangle(rx0,ry0, lx1,ly1, rx1,ry1, fillColor);
+    // join fill
+    if (i > 0) {
+      sprite.fillTriangle(lx0,ly0, rx0,ry0, xs[i],ys[i], fillColor);
+    }
+  }
+
+  // 2. Draw outer border lines on top
+  float borderHalf = halfW + 1.5f; // border extends slightly beyond fill
+  for (int i = 0; i < n - 1; i++) {
+    float dx = xs[i+1]-xs[i], dy = ys[i+1]-ys[i];
+    float len = sqrtf(dx*dx + dy*dy);
+    if (len < 0.5f) continue;
+    float nx = -dy/len*borderHalf, ny = dx/len*borderHalf;
+    int16_t a0,b0,a1,b1;
+    a0=xs[i]+nx; b0=ys[i]+ny; a1=xs[i+1]+nx; b1=ys[i+1]+ny;
+    if (clipLine(a0,b0,a1,b1)) sprite.drawLine(a0,b0,a1,b1,borderColor);
+    a0=xs[i]-nx; b0=ys[i]-ny; a1=xs[i+1]-nx; b1=ys[i+1]-ny;
+    if (clipLine(a0,b0,a1,b1)) sprite.drawLine(a0,b0,a1,b1,borderColor);
+  }
+}
+
+const int CX = 120, CY = 120;
+const float MAIN_HALF = 8.0f; // 8px total main route
+const float SEC_HALF = 8.0f;  // 3px total secondary (hollow)
+const int CAMERA_OFFSET_Y = 35; // positive = move camera up (rider goes down)
+
 void drawSecondaryRoads()
 {
   sprite.fillRect(0, 0, 240, 240, TFT_BLACK);
-  bool first = true;
-  const int CENTER_X = 120;
-  const int CENTER_Y = 120;
 
-  // Smooth camera
-  currentRiderX += (targetRiderX - currentRiderX) * 0.1;
-  currentRiderY += (targetRiderY - currentRiderY) * 0.1;
 
-  float heading_radians = -heading_degrees * (PI / 180.0);
-  float s = sin(heading_radians);
-  float c = cos(heading_radians);
+  currentRiderX += (targetRiderX - currentRiderX) * 0.15;
+  currentRiderY += (targetRiderY - currentRiderY) * 0.15;
 
-  // =========================
-  // SECONDARY ROADS
-  // =========================
+  float hr = -heading_degrees * (PI / 180.0f);
+  float sinH = sinf(hr), cosH = cosf(hr);
+  float offX = currentRiderX, offY = currentRiderY;
+
+// ── Inline transform macro ──
+// sx = CX + (relX*cosH - relY*sinH)
+// sy = CY + (relX*sinH + relY*cosH)
+#define TO_SCREEN(mapX, mapY, sx, sy)   \
+  {                                     \
+    float _rx = ((mapX) - offX) * ZOOM; \
+    float _ry = ((mapY) - offY) * ZOOM; \
+    sx = CX + _rx * cosH - _ry * sinH;  \
+    sy = CY + _rx * sinH + _ry * cosH;  \
+  }
+
+  // ══════════════════════════════════════════
+  // 1. SECONDARY ROADS (hollow, drawn first)
+  // ══════════════════════════════════════════
   if (secBinaryLen >= 5)
   {
-    int16_t prevX = 0;
-    int16_t prevY = 0;
-
+    int segN = 0;
+    // flush one road segment to screen
+    auto flushSeg = [&]()
+    {
+      if (segN >= 2)
+        drawPolyHollow(_segX, _segY, segN, 0x000, TFT_WHITE, SEC_HALF);
+      segN = 0;
+    };
     for (int i = 0; i <= secBinaryLen - 5; i += 5)
     {
-      if ((i % 200) == 0)
-        delay(0);
       uint8_t cmd = secBinary[i];
-
       int16_t mapX = secBinary[i + 1] | (secBinary[i + 2] << 8);
       int16_t mapY = secBinary[i + 3] | (secBinary[i + 4] << 8);
-
-      float relX = mapX - currentRiderX;
-      float relY = mapY - currentRiderY;
-
-      int16_t rotX = round((relX * c) - (relY * s));
-      int16_t rotY = round((relX * s) + (relY * c));
-
-      int16_t screenX = CENTER_X + rotX;
-      int16_t screenY = CENTER_Y + rotY;
-
-      if (cmd == 1 && !first)
+      int16_t sx, sy;
+      TO_SCREEN(mapX, mapY, sx, sy);
+      if (cmd == 0)
+        flushSeg(); // moveTo = new road
+      if (segN < 512)
       {
-        drawSafeLine(prevX, prevY, screenX, screenY, TFT_DARKGREY);
+        _segX[segN] = sx;
+        _segY[segN] = sy;
+        segN++;
       }
-
-      prevX = screenX;
-      prevY = screenY;
-      first = false;
     }
+    flushSeg();
   }
 
-  // =========================
-  // MAIN ROUTE (THICK)
-  // =========================
+  // ══════════════════════════════════════════
+  // 2. MAIN ROUTE (filled, drawn on top)
+  // ══════════════════════════════════════════
   if (mapBinaryLen >= 5)
   {
-    int16_t prevX = 0;
-    int16_t prevY = 0;
-
-    for (int i = 0; i <= mapBinaryLen - 5; i += 5)
+    int mainN = 0;
+    for (int i = 0; i <= mapBinaryLen - 5 && mainN < 2048; i += 5)
     {
-      if ((i % 200) == 0)
-        delay(0);
-      uint8_t cmd = mapBinary[i];
-
       int16_t mapX = mapBinary[i + 1] | (mapBinary[i + 2] << 8);
       int16_t mapY = mapBinary[i + 3] | (mapBinary[i + 4] << 8);
-
-      float relX = mapX - currentRiderX;
-      float relY = mapY - currentRiderY;
-
-      int16_t rotX = round((relX * c) - (relY * s));
-      int16_t rotY = round((relX * s) + (relY * c));
-
-      int16_t screenX = CENTER_X + rotX;
-      int16_t screenY = CENTER_Y + rotY;
-
-      if (cmd == 1)
-      {
-        drawSafeLine(prevX, prevY, screenX, screenY, TFT_WHITE);
-        drawSafeLine(prevX + 1, prevY, screenX + 1, screenY, TFT_WHITE);
-        drawSafeLine(prevX - 1, prevY, screenX - 1, screenY, TFT_WHITE);
-        drawSafeLine(prevX, prevY + 1, screenX, screenY + 1, TFT_WHITE);
-        drawSafeLine(prevX, prevY - 1, screenX, screenY - 1, TFT_WHITE);
-      }
-
-      prevX = screenX;
-      prevY = screenY;
+      int16_t sx, sy;
+      TO_SCREEN(mapX, mapY, sx, sy);
+      _scrX[mainN] = sx;
+      _scrY[mainN] = sy;
+      mainN++;
     }
+    if (mainN >= 2)
+      drawPolyFilled(_scrX, _scrY, mainN, TFT_WHITE, MAIN_HALF);
   }
 
-  // =========================
-  // RIDER ARROW
-  // =========================
-  sprite.fillTriangle(
-      CENTER_X, CENTER_Y - 10,
-      CENTER_X - 6, CENTER_Y + 8,
-      CENTER_X + 6, CENTER_Y + 8,
-      TFT_WHITE);
+#undef TO_SCREEN
 
-  // push once per frame (NO flicker)
+  // ══════════════════════════════════════════
+  // 3. RIDER ARROW (always on top)
+  // ══════════════════════════════════════════
+  const float RIDER_SCALE = 1.5f; // tune this
+
+  // Black outline
+  sprite.fillTriangle(CX, CY - 14 * RIDER_SCALE, CX - 10 * RIDER_SCALE, CY + 8 * RIDER_SCALE, CX + 10 * RIDER_SCALE, CY + 8 * RIDER_SCALE, TFT_BLACK);
+  // White arrow
+  sprite.fillTriangle(CX, CY - 11 * RIDER_SCALE, CX - 8 * RIDER_SCALE, CY + 6 * RIDER_SCALE, CX + 8 * RIDER_SCALE, CY + 6 * RIDER_SCALE, TFT_WHITE);
+  // Black notch
+  sprite.fillTriangle(CX, CY + 2 * RIDER_SCALE, CX - 5 * RIDER_SCALE, CY + 8 * RIDER_SCALE, CX + 5 * RIDER_SCALE, CY + 8 * RIDER_SCALE, TFT_BLACK);
+
   sprite.pushSprite(0, 0);
 }
-
 inline bool dimPixel(int i)
 {
   return (i % 2) == 0; // simple dithering
@@ -415,7 +505,7 @@ class MyCallbacks : public BLECharacteristicCallbacks
 
         // 3. DO THE MATH ON THE ESP32
         // Make sure this scale matches the "0.4" you use in React Native
-        double scale = 0.4;
+
         double metersPerDegLat = 111320.0;
         double metersPerDegLon = 111320.0 * cos(originLat * PI / 180.0);
 
@@ -444,7 +534,7 @@ void setup()
   Wire.begin(SDA_PIN, SCL_PIN); // ESP32 I2C pins
   Wire.setClock(400000);        // 400kHz Fast Mode (default is 100kHz)
 
-  delay(4000);
+  delay(3000);
   if (!mag.begin())
   {
     Serial.println("HMC5883 not detected");
@@ -515,42 +605,21 @@ void loop()
       mag.getEvent(&event);
       float heading = atan2(event.magnetic.y, event.magnetic.x);
 
+      Serial.print(event.magnetic.x);
+      Serial.print(" - ");
+      Serial.print(event.magnetic.y);
+      Serial.print(" - ");
+      Serial.println(event.magnetic.z);
+
       if (heading < 0)
         heading += 2 * PI;
 
-      float headingDegrees = heading * 180 / M_PI;
-      float newHeading = headingDegrees;
-
-      // --- INIT ---
-      if (!headingInitialized)
-      {
-        smoothHeading = newHeading;
-        headingInitialized = true;
-      }
-
-      // --- HANDLE WRAP (critical) ---
-      float delta = newHeading - smoothHeading;
-
-      if (delta > 180)
-        delta -= 360;
-      if (delta < -180)
-        delta += 360;
-
-      // --- SMOOTHING (low-pass filter) ---
-      smoothHeading += delta * 0.25; // 🔥 tune this
-
-      // keep in 0–360
-      if (smoothHeading < 0)
-        smoothHeading += 360;
-      if (smoothHeading >= 360)
-        smoothHeading -= 360;
-
-      heading_degrees = smoothHeading;
-
+      heading_degrees = heading * 180 / M_PI;
+      // Serial.println(heading_degrees);
+      
       // Trigger the OLED render frame with the new heading_degrees
       drawSecondaryRoads();
     }
   }
-  // drawSecondaryRoads();
   delay(1);
 }
