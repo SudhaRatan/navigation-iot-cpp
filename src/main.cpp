@@ -21,6 +21,12 @@
 #define TFT_MOSI 6
 #define TFT_SCLK 4
 
+// Buttons
+#define BTN1 0
+#define BTN2 1
+#define BTN3 2
+#define BTN4 3
+
 // Adafruit_GC9A01A tft(TFT_CS, TFT_DC, TFT_RST);
 TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite sprite = TFT_eSprite(&tft); // framebuffer
@@ -43,28 +49,36 @@ int mapBinaryLen = 0;
 const double scale = 0.4;
 const float ZOOM = 3;
 
+void stopNavigation()
+{
+  mapBuffer = "";
+  secBuffer = "";
+
+  secBinaryLen = 0;
+  mapBinaryLen = 0;
+}
+
+void showConnected(){
+  sprite.fillScreen(TFT_BLACK);
+  sprite.setTextColor(TFT_WHITE);
+  sprite.setTextSize(2);
+  sprite.setCursor(40, 120);
+  sprite.println("CONNECTED");
+  sprite.pushSprite(0, 0);
+}
+
 class MyServerCallbacks : public BLEServerCallbacks
 {
 
   void onConnect(BLEServer *pServer)
   {
-    sprite.fillScreen(TFT_BLACK);
-    sprite.setTextColor(TFT_WHITE);
-    sprite.setTextSize(2);
-    sprite.setCursor(40, 120);
-    sprite.println("CONNECTED");
-    sprite.pushSprite(0, 0);
+    showConnected();
   }
 
   void onDisconnect(BLEServer *pServer)
   {
 
-    mapBuffer = "";
-    secBuffer = "";
-
-    secBinaryLen = 0;
-    mapBinaryLen = 0;
-
+    stopNavigation();
     sprite.fillScreen(TFT_BLACK);
     sprite.setTextColor(TFT_WHITE);
     sprite.setTextSize(2);
@@ -171,6 +185,7 @@ void drawSafeLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color
 
 float heading_degrees = 0.0;
 unsigned long lastDrawTime = 0;
+unsigned long lastDrawTimeBtn1 = 0;
 
 // --- CAMERA ANIMATION GLOBALS ---
 double targetRiderX = 0;
@@ -546,6 +561,11 @@ void setup()
   Wire.begin(SDA_PIN, SCL_PIN); // ESP32 I2C pins
   Wire.setClock(400000);        // 400kHz Fast Mode (default is 100kHz)
 
+  pinMode(BTN1, INPUT_PULLUP);
+  pinMode(BTN2, INPUT_PULLUP);
+  pinMode(BTN3, INPUT_PULLUP);
+  pinMode(BTN4, INPUT_PULLUP);
+
   delay(3000);
   if (!mag.begin())
   {
@@ -607,10 +627,20 @@ bool headingInitialized = false;
 
 void loop()
 {
+  unsigned long currentMillis = millis();
+
+  if (digitalRead(BTN1) == LOW)
+  {
+    if (currentMillis - lastDrawTimeBtn1 >= 1000)
+    {
+      stopNavigation();
+      showConnected();
+      lastDrawTimeBtn1 = currentMillis;
+    }
+  }
+
   if ((!receivingSec && secBinaryLen >= 5) || (!receivingMap && mapBinaryLen >= 5))
   {
-    unsigned long currentMillis = millis();
-
     if (currentMillis - lastDrawTime >= 33)
     {
       lastDrawTime = currentMillis;
