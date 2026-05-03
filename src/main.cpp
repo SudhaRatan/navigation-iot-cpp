@@ -241,51 +241,65 @@ void drawPolyFilled(int16_t *xs, int16_t *ys, int n, uint16_t color, float halfW
 
 // ── Hollow polyline: 2 clipped lines per segment, no circles ──
 // Replace drawPolyHollow with this:
-void drawPolyHollow(int16_t *xs, int16_t *ys, int n, uint16_t fillColor, uint16_t borderColor, float halfW) {
-  if (n < 2) return;
+void drawPolyHollow(int16_t *xs, int16_t *ys, int n, uint16_t fillColor, uint16_t borderColor, float halfW)
+{
+  if (n < 2)
+    return;
 
   // 1. Draw filled dark body first (covers intersections cleanly)
-  for (int i = 0; i < n - 1; i++) {
-    float dx = xs[i+1]-xs[i], dy = ys[i+1]-ys[i];
-    float len = sqrtf(dx*dx + dy*dy);
-    if (len < 0.5f) continue;
-    float nx = -dy/len*halfW, ny = dx/len*halfW;
-    int16_t lx0=xs[i]+nx, ly0=ys[i]+ny;
-    int16_t rx0=xs[i]-nx, ry0=ys[i]-ny;
-    int16_t lx1=xs[i+1]+nx, ly1=ys[i+1]+ny;
-    int16_t rx1=xs[i+1]-nx, ry1=ys[i+1]-ny;
-    sprite.fillTriangle(lx0,ly0, rx0,ry0, lx1,ly1, fillColor);
-    sprite.fillTriangle(rx0,ry0, lx1,ly1, rx1,ry1, fillColor);
+  for (int i = 0; i < n - 1; i++)
+  {
+    float dx = xs[i + 1] - xs[i], dy = ys[i + 1] - ys[i];
+    float len = sqrtf(dx * dx + dy * dy);
+    if (len < 0.5f)
+      continue;
+    float nx = -dy / len * halfW, ny = dx / len * halfW;
+    int16_t lx0 = xs[i] + nx, ly0 = ys[i] + ny;
+    int16_t rx0 = xs[i] - nx, ry0 = ys[i] - ny;
+    int16_t lx1 = xs[i + 1] + nx, ly1 = ys[i + 1] + ny;
+    int16_t rx1 = xs[i + 1] - nx, ry1 = ys[i + 1] - ny;
+    sprite.fillTriangle(lx0, ly0, rx0, ry0, lx1, ly1, fillColor);
+    sprite.fillTriangle(rx0, ry0, lx1, ly1, rx1, ry1, fillColor);
     // join fill
-    if (i > 0) {
-      sprite.fillTriangle(lx0,ly0, rx0,ry0, xs[i],ys[i], fillColor);
+    if (i > 0)
+    {
+      sprite.fillTriangle(lx0, ly0, rx0, ry0, xs[i], ys[i], fillColor);
     }
   }
 
   // 2. Draw outer border lines on top
   float borderHalf = halfW + 1.5f; // border extends slightly beyond fill
-  for (int i = 0; i < n - 1; i++) {
-    float dx = xs[i+1]-xs[i], dy = ys[i+1]-ys[i];
-    float len = sqrtf(dx*dx + dy*dy);
-    if (len < 0.5f) continue;
-    float nx = -dy/len*borderHalf, ny = dx/len*borderHalf;
-    int16_t a0,b0,a1,b1;
-    a0=xs[i]+nx; b0=ys[i]+ny; a1=xs[i+1]+nx; b1=ys[i+1]+ny;
-    if (clipLine(a0,b0,a1,b1)) sprite.drawLine(a0,b0,a1,b1,borderColor);
-    a0=xs[i]-nx; b0=ys[i]-ny; a1=xs[i+1]-nx; b1=ys[i+1]-ny;
-    if (clipLine(a0,b0,a1,b1)) sprite.drawLine(a0,b0,a1,b1,borderColor);
+  for (int i = 0; i < n - 1; i++)
+  {
+    float dx = xs[i + 1] - xs[i], dy = ys[i + 1] - ys[i];
+    float len = sqrtf(dx * dx + dy * dy);
+    if (len < 0.5f)
+      continue;
+    float nx = -dy / len * borderHalf, ny = dx / len * borderHalf;
+    int16_t a0, b0, a1, b1;
+    a0 = xs[i] + nx;
+    b0 = ys[i] + ny;
+    a1 = xs[i + 1] + nx;
+    b1 = ys[i + 1] + ny;
+    if (clipLine(a0, b0, a1, b1))
+      sprite.drawLine(a0, b0, a1, b1, borderColor);
+    a0 = xs[i] - nx;
+    b0 = ys[i] - ny;
+    a1 = xs[i + 1] - nx;
+    b1 = ys[i + 1] - ny;
+    if (clipLine(a0, b0, a1, b1))
+      sprite.drawLine(a0, b0, a1, b1, borderColor);
   }
 }
 
 const int CX = 120, CY = 120;
-const float MAIN_HALF = 8.0f; // 8px total main route
-const float SEC_HALF = 8.0f;  // 3px total secondary (hollow)
+const float MAIN_HALF = 8.0f;   // 8px total main route
+const float SEC_HALF = 8.0f;    // 3px total secondary (hollow)
 const int CAMERA_OFFSET_Y = 35; // positive = move camera up (rider goes down)
 
 void drawSecondaryRoads()
 {
   sprite.fillRect(0, 0, 240, 240, TFT_BLACK);
-
 
   currentRiderX += (targetRiderX - currentRiderX) * 0.15;
   currentRiderY += (targetRiderY - currentRiderY) * 0.15;
@@ -372,10 +386,6 @@ void drawSecondaryRoads()
   sprite.fillTriangle(CX, CY + 2 * RIDER_SCALE, CX - 5 * RIDER_SCALE, CY + 8 * RIDER_SCALE, CX + 5 * RIDER_SCALE, CY + 8 * RIDER_SCALE, TFT_BLACK);
 
   sprite.pushSprite(0, 0);
-}
-inline bool dimPixel(int i)
-{
-  return (i % 2) == 0; // simple dithering
 }
 
 class MyCallbacks : public BLECharacteristicCallbacks
@@ -616,7 +626,7 @@ void loop()
 
       heading_degrees = heading * 180 / M_PI;
       // Serial.println(heading_degrees);
-      
+
       // Trigger the OLED render frame with the new heading_degrees
       drawSecondaryRoads();
     }
