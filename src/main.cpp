@@ -8,6 +8,7 @@
 #include <Adafruit_HMC5883_U.h>
 #include <TFT_eSPI.h>
 #include <SPI.h>
+#include <MPU6500_Raw.h>
 
 #define SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
@@ -25,6 +26,7 @@ TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite sprite = TFT_eSprite(&tft); // framebuffer
 
 Adafruit_HMC5883_Unified mag = Adafruit_HMC5883_Unified(12345);
+MPU6500 mpu;
 
 String mapBuffer = "";
 String secBuffer = "";
@@ -552,6 +554,9 @@ void setup()
       ;
   }
 
+  mpu.setup(0x68);
+  mpu.calibrateAccelGyro();
+
   Serial.println("HMC5883 detected");
 
   delay(1000);
@@ -602,8 +607,6 @@ bool headingInitialized = false;
 
 void loop()
 {
-
-  // // 2. Draw the frame (Limit to ~30 FPS so we don't choke the I2C bus)
   if ((!receivingSec && secBinaryLen >= 5) || (!receivingMap && mapBinaryLen >= 5))
   {
     unsigned long currentMillis = millis();
@@ -611,23 +614,45 @@ void loop()
     if (currentMillis - lastDrawTime >= 33)
     {
       lastDrawTime = currentMillis;
-      sensors_event_t event;
-      mag.getEvent(&event);
-      float heading = atan2(event.magnetic.y, event.magnetic.x);
 
-      Serial.print(event.magnetic.x);
-      Serial.print(" - ");
-      Serial.print(event.magnetic.y);
-      Serial.print(" - ");
-      Serial.println(event.magnetic.z);
+      // Tilt-compensated heading
+      // mpu.update_accel_gyro();
+      sensors_event_t magEvent;
+      mag.getEvent(&magEvent);
 
+      float ax = mpu.getAccX(), ay = mpu.getAccY(), az = mpu.getAccZ();
+      float roll = atan2f(ay, az);
+      float pitch = atan2f(-ax, sqrtf(ay * ay + az * az));
+
+      float mx = magEvent.magnetic.x;
+      float my = magEvent.magnetic.y;
+      float mz = magEvent.magnetic.z;
+
+      float Xh = mx * cosf(pitch) + mz * sinf(pitch);
+      float Yh = mx * sinf(roll) * sinf(pitch) + my * cosf(roll) - mz * sinf(roll) * cosf(pitch);
+
+      float heading = atan2f(-Yh, Xh);
       if (heading < 0)
         heading += 2 * PI;
+      float newHeading = heading * 180.0f / M_PI;
 
-      heading_degrees = heading * 180 / M_PI;
-      // Serial.println(heading_degrees);
+      if (!headingInitialized)
+      {
+        smoothHeading = newHeading;
+        headingInitialized = true;
+      }
+      float delta = newHeading - smoothHeading;
+      if (delta > 180)
+        delta -= 360;
+      if (delta < -180)
+        delta += 360;
+      smoothHeading += delta * 0.25f;
+      if (smoothHeading < 0)
+        smoothHeading += 360;
+      if (smoothHeading >= 360)
+        smoothHeading -= 360;
+      heading_degrees = smoothHeading;
 
-      // Trigger the OLED render frame with the new heading_degrees
       drawSecondaryRoads();
     }
   }
