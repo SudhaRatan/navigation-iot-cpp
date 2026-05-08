@@ -49,6 +49,8 @@ int mapBinaryLen = 0;
 const double scale = 0.4;
 const float ZOOM = 3;
 
+bool deviceConnected = false;
+
 void stopNavigation()
 {
   mapBuffer = "";
@@ -59,12 +61,14 @@ void stopNavigation()
 }
 
 void showConnected(){
-  sprite.fillScreen(TFT_BLACK);
-  sprite.setTextColor(TFT_WHITE);
-  sprite.setTextSize(2);
-  sprite.setCursor(40, 120);
-  sprite.println("CONNECTED");
-  sprite.pushSprite(0, 0);
+  if(deviceConnected){
+    sprite.fillScreen(TFT_BLACK);
+    sprite.setTextColor(TFT_WHITE);
+    sprite.setTextSize(2);
+    sprite.setCursor(40, 120);
+    sprite.println("CONNECTED");
+    sprite.pushSprite(0, 0);
+  }
 }
 
 class MyServerCallbacks : public BLEServerCallbacks
@@ -72,12 +76,13 @@ class MyServerCallbacks : public BLEServerCallbacks
 
   void onConnect(BLEServer *pServer)
   {
+    deviceConnected = true;
     showConnected();
   }
 
   void onDisconnect(BLEServer *pServer)
   {
-
+    deviceConnected = false;
     stopNavigation();
     sprite.fillScreen(TFT_BLACK);
     sprite.setTextColor(TFT_WHITE);
@@ -346,7 +351,7 @@ void drawSecondaryRoads()
     auto flushSeg = [&]()
     {
       if (segN >= 2)
-        drawPolyHollow(_segX, _segY, segN, 0x000, TFT_WHITE, SEC_HALF);
+        drawPolyHollow(_segX, _segY, segN, 0x000, TFT_DARKGREY, SEC_HALF);
       segN = 0;
     };
     for (int i = 0; i <= secBinaryLen - 5; i += 5)
@@ -575,7 +580,7 @@ void setup()
   }
 
   mpu.setup(0x68);
-  mpu.calibrateAccelGyro();
+  //mpu.calibrateAccelGyro();
 
   Serial.println("HMC5883 detected");
 
@@ -631,7 +636,7 @@ void loop()
 
   if (digitalRead(BTN1) == LOW)
   {
-    if (currentMillis - lastDrawTimeBtn1 >= 1000)
+    if (currentMillis - lastDrawTimeBtn1 >= 300 && deviceConnected)
     {
       stopNavigation();
       showConnected();
