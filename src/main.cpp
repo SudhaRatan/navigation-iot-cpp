@@ -60,8 +60,10 @@ void stopNavigation()
   mapBinaryLen = 0;
 }
 
-void showConnected(){
-  if(deviceConnected){
+void showConnected()
+{
+  if (deviceConnected)
+  {
     sprite.fillScreen(TFT_BLACK);
     sprite.setTextColor(TFT_WHITE);
     sprite.setTextSize(2);
@@ -342,18 +344,17 @@ void drawSecondaryRoads()
   }
 
   // ══════════════════════════════════════════
-  // 1. SECONDARY ROADS (hollow, drawn first)
+  // 1. SECONDARY ROADS
   // ══════════════════════════════════════════
   if (secBinaryLen >= 5)
   {
-    int segN = 0;
-    // flush one road segment to screen
-    auto flushSeg = [&]()
-    {
-      if (segN >= 2)
-        drawPolyHollow(_segX, _segY, segN, 0x000, TFT_DARKGREY, SEC_HALF);
-      segN = 0;
-    };
+    const float widthTable[] = {0, 1.0f, 1.5f, 2.0f, 3.0f, 4.5f, 6.0f};
+
+    // PASS 1 — borders first
+    int16_t prevX = 0, prevY = 0;
+    float curHW = 2.0f;
+    bool first = true;
+
     for (int i = 0; i <= secBinaryLen - 5; i += 5)
     {
       uint8_t cmd = secBinary[i];
@@ -361,16 +362,77 @@ void drawSecondaryRoads()
       int16_t mapY = secBinary[i + 3] | (secBinary[i + 4] << 8);
       int16_t sx, sy;
       TO_SCREEN(mapX, mapY, sx, sy);
-      if (cmd == 0)
-        flushSeg(); // moveTo = new road
-      if (segN < 512)
+      if (cmd != 255)
       {
-        _segX[segN] = sx;
-        _segY[segN] = sy;
-        segN++;
+        first = true;
+        curHW = (cmd <= 6) ? widthTable[cmd] : 2.0f;
       }
+      else if (!first)
+      {
+        float dx = sx - prevX, dy = sy - prevY;
+        float len = sqrtf(dx * dx + dy * dy);
+        if (len >= 0.5f)
+        {
+          float nx = -dy / len * (curHW + 1.0f), ny = dx / len * (curHW + 1.0f);
+          int16_t a0, b0, a1, b1;
+          a0 = prevX + nx;
+          b0 = prevY + ny;
+          a1 = sx + nx;
+          b1 = sy + ny;
+          if (clipLine(a0, b0, a1, b1))
+            sprite.drawLine(a0, b0, a1, b1, TFT_WHITE);
+          a0 = prevX - nx;
+          b0 = prevY - ny;
+          a1 = sx - nx;
+          b1 = sy - ny;
+          if (clipLine(a0, b0, a1, b1))
+            sprite.drawLine(a0, b0, a1, b1, TFT_WHITE);
+        }
+      }
+      prevX = sx;
+      prevY = sy;
+      first = false;
     }
-    flushSeg();
+
+    // PASS 2 — fill inside with black (narrower than border)
+    prevX = 0;
+    prevY = 0;
+    curHW = 2.0f;
+    first = true;
+
+    for (int i = 0; i <= secBinaryLen - 5; i += 5)
+    {
+      uint8_t cmd = secBinary[i];
+      int16_t mapX = secBinary[i + 1] | (secBinary[i + 2] << 8);
+      int16_t mapY = secBinary[i + 3] | (secBinary[i + 4] << 8);
+      int16_t sx, sy;
+      TO_SCREEN(mapX, mapY, sx, sy);
+      if (cmd != 255)
+      {
+        first = true;
+        curHW = (cmd <= 6) ? widthTable[cmd] : 2.0f;
+      }
+      else if (!first)
+      {
+        float dx = sx - prevX, dy = sy - prevY;
+        float len = sqrtf(dx * dx + dy * dy);
+        if (len >= 0.5f)
+        {
+          float nx = -dy / len * curHW, ny = dx / len * curHW;
+          sprite.fillTriangle(
+              prevX + nx, prevY + ny,
+              prevX - nx, prevY - ny,
+              sx + nx, sy + ny, TFT_BLACK);
+          sprite.fillTriangle(
+              prevX - nx, prevY - ny,
+              sx + nx, sy + ny,
+              sx - nx, sy - ny, TFT_BLACK);
+        }
+      }
+      prevX = sx;
+      prevY = sy;
+      first = false;
+    }
   }
 
   // ══════════════════════════════════════════
@@ -580,7 +642,7 @@ void setup()
   }
 
   mpu.setup(0x68);
-  //mpu.calibrateAccelGyro();
+  // mpu.calibrateAccelGyro();
 
   Serial.println("HMC5883 detected");
 
