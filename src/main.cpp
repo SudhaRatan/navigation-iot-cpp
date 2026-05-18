@@ -634,6 +634,7 @@ void setup()
   pinMode(BTN4, INPUT_PULLUP);
 
   delay(3000);
+  Serial.println("Starting");
   if (!mag.begin())
   {
     Serial.println("HMC5883 not detected");
