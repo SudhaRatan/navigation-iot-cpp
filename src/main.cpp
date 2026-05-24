@@ -122,8 +122,7 @@ void setup()
       secBinaryLen,
       mapBinaryLen,
       tftDisplay,
-      ZOOM
-  ));
+      ZOOM));
   Serial.println("Characteristic defined! Now you can read it in your phone!");
 
   delay(10);
