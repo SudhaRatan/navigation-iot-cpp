@@ -10,9 +10,11 @@ private:
   TFT_Display *display;
 
 public:
-  MyServerCallbacks(TFT_Display &_display,
-                    bool &_deviceConnected) : display(&_display),
-                                              deviceConnected(&_deviceConnected)
+  MyServerCallbacks(
+    TFT_Display &_display,
+    bool &_deviceConnected) :
+    display(&_display),
+    deviceConnected(&_deviceConnected)
   {
   }
   void onConnect(BLEServer *pServer)
@@ -105,7 +107,7 @@ public:
 
       mbedtls_base64_decode(
           *mapBinary,
-          sizeof(mapBinary),
+          sizeof(*mapBinary),
           &outLen,
           (const unsigned char *)mapBuffer->c_str(),
           mapBuffer->length());
@@ -153,7 +155,7 @@ public:
 
       mbedtls_base64_decode(
           *secBinary,
-          sizeof(secBinary),
+          sizeof(*secBinary),
           &outLen,
           (const unsigned char *)secBuffer->c_str(),
           secBuffer->length());

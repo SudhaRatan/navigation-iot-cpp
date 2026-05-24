@@ -1,3 +1,4 @@
+#pragma once
 #include <TFT_eSPI.h>
 
 class TFT_Display
@@ -51,12 +52,14 @@ public:
   {
     if (*deviceConnected)
     {
+      sprite->setTextFont(1);
       sprite->fillScreen(TFT_BLACK);
       sprite->setTextColor(TFT_WHITE);
       sprite->setTextSize(2);
       sprite->setCursor(40, 120);
       sprite->println("CONNECTED");
       sprite->pushSprite(0, 0);
+      
     }
   }
 

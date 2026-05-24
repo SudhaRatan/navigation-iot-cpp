@@ -8,12 +8,17 @@
 #include <SPI.h>
 #include <MPU6500_Raw.h>
 #include "ble.cpp"
+#include "QR.cpp"
+
+// Screens
+#include "navigation.cpp"
+#include "screens/WelcomeScreen.cpp"
 
 #define SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 #define SDA_PIN 8
 #define SCL_PIN 9
-
+// SPIClass hspi(HSPI);
 // display
 #define TFT_CS 5
 #define TFT_DC 7
@@ -21,17 +26,13 @@
 #define TFT_MOSI 6
 #define TFT_SCLK 4
 
-// Buttons
-#define BTN1 0
-#define BTN2 1
-#define BTN3 2
-#define BTN4 3
-
 TFT_eSPI tft = TFT_eSPI();
 TFT_eSprite sprite = TFT_eSprite(&tft); // framebuffer
 
 Adafruit_HMC5883_Unified mag = Adafruit_HMC5883_Unified(12345);
 MPU6500 mpu;
+
+QRCodeGenerator qrGenerator(sprite);
 
 #pragma region GlobalStates
 String mapBuffer = "";
@@ -53,7 +54,7 @@ bool deviceConnected = false;
 float ZOOM = 3;
 float heading_degrees = 0.0;
 unsigned long lastDrawTime = 0;
-unsigned long lastDrawTimeBtn1 = 0;
+unsigned long currentMillis = millis();
 
 #pragma endregion GlobalStates
 
@@ -61,6 +62,8 @@ unsigned long lastDrawTimeBtn1 = 0;
 
 TFT_Display tftDisplay(sprite, mapBuffer, secBuffer, secBinaryLen, mapBinaryLen, deviceConnected, secBinary, mapBinary, ZOOM, heading_degrees);
 MyServerCallbacks serverCallbacks(tftDisplay, deviceConnected);
+WelcomeScreen welcomeScreen(sprite);
+ScreenNavigation navigation(tftDisplay, deviceConnected, currentMillis, receivingSec, receivingMap, secBinaryLen, mapBinaryLen, lastDrawTime);
 
 #pragma endregion DependencyInjection
 
@@ -71,12 +74,6 @@ void setup()
   Wire.begin(SDA_PIN, SCL_PIN); // ESP32 I2C pins
   Wire.setClock(400000);        // 400kHz Fast Mode (default is 100kHz)
 
-  pinMode(BTN1, INPUT_PULLUP);
-  pinMode(BTN2, INPUT_PULLUP);
-  pinMode(BTN3, INPUT_PULLUP);
-  pinMode(BTN4, INPUT_PULLUP);
-
-  delay(3000);
   Serial.println("Starting");
   if (!mag.begin())
   {
@@ -123,9 +120,8 @@ void setup()
       mapBinaryLen,
       tftDisplay,
       ZOOM));
+  navigation.init();
   Serial.println("Characteristic defined! Now you can read it in your phone!");
-
-  delay(10);
 
   tft.init();
   tft.setRotation(0);
@@ -141,6 +137,8 @@ void setup()
   sprite.println("CONNECT DEVICE");
 
   sprite.pushSprite(0, 0);
+
+  welcomeScreen.init();
 }
 
 float smoothHeading = 0.0;
@@ -148,64 +146,8 @@ bool headingInitialized = false;
 
 void loop()
 {
-  unsigned long currentMillis = millis();
+  currentMillis = millis();
 
-  if (digitalRead(BTN1) == LOW)
-  {
-    if (currentMillis - lastDrawTimeBtn1 >= 300 && deviceConnected)
-    {
-      tftDisplay.stopNavigation();
-      tftDisplay.showConnected();
-      lastDrawTimeBtn1 = currentMillis;
-    }
-  }
-
-  if ((!receivingSec && secBinaryLen >= 5) || (!receivingMap && mapBinaryLen >= 5))
-  {
-    if (currentMillis - lastDrawTime >= 33)
-    {
-      lastDrawTime = currentMillis;
-
-      // Tilt-compensated heading
-      // mpu.update_accel_gyro();
-      sensors_event_t magEvent;
-      mag.getEvent(&magEvent);
-
-      float ax = mpu.getAccX(), ay = mpu.getAccY(), az = mpu.getAccZ();
-      float roll = atan2f(ay, az);
-      float pitch = atan2f(-ax, sqrtf(ay * ay + az * az));
-
-      float mx = magEvent.magnetic.x;
-      float my = magEvent.magnetic.y;
-      float mz = magEvent.magnetic.z;
-
-      float Xh = mx * cosf(pitch) + mz * sinf(pitch);
-      float Yh = mx * sinf(roll) * sinf(pitch) + my * cosf(roll) - mz * sinf(roll) * cosf(pitch);
-
-      float heading = atan2f(-Yh, Xh);
-      if (heading < 0)
-        heading += 2 * PI;
-      float newHeading = heading * 180.0f / M_PI;
-
-      if (!headingInitialized)
-      {
-        smoothHeading = newHeading;
-        headingInitialized = true;
-      }
-      float delta = newHeading - smoothHeading;
-      if (delta > 180)
-        delta -= 360;
-      if (delta < -180)
-        delta += 360;
-      smoothHeading += delta * 0.25f;
-      if (smoothHeading < 0)
-        smoothHeading += 360;
-      if (smoothHeading >= 360)
-        smoothHeading -= 360;
-      heading_degrees = smoothHeading;
-
-      tftDisplay.drawSecondaryRoads();
-    }
-  }
-  delay(1);
+  navigation.loop();
+  
 }
