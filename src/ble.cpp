@@ -1,20 +1,20 @@
-#include<BLEDevice.h>
-#include<BLEServer.h>
+#include <BLEDevice.h>
+#include <BLEServer.h>
 #include "display.cpp"
 #include "mbedtls/base64.h"
 
 class MyServerCallbacks : public BLEServerCallbacks
 {
-  private:
+private:
   bool *deviceConnected;
   TFT_Display *display;
 
-  public:
+public:
   MyServerCallbacks(TFT_Display &_display,
-    bool &_deviceConnected) :
-    display(&_display),
-    deviceConnected(&_deviceConnected)
-    {}
+                    bool &_deviceConnected) : display(&_display),
+                                              deviceConnected(&_deviceConnected)
+  {
+  }
   void onConnect(BLEServer *pServer)
   {
     *deviceConnected = true;
@@ -38,7 +38,7 @@ class MyServerCallbacks : public BLEServerCallbacks
 class MyCallbacks : public BLECharacteristicCallbacks
 {
 
-  private:
+private:
   String *mapBuffer;
   String *secBuffer;
   bool *receivingMap;
@@ -47,31 +47,30 @@ class MyCallbacks : public BLECharacteristicCallbacks
   uint8_t (*mapBinary)[20000]; // adjust if needed
   int *secBinaryLen = 0;
   int *mapBinaryLen = 0;
-  TFT_Display *tftDisplay;   // ← added
+  TFT_Display *tftDisplay; // ← added
   float *ZOOM;
 
-  public:
+public:
   MyCallbacks(
-    String &_mapBuffer,
-    String &_secBuffer,
-    bool &_receivingMap,
-    bool &_receivingSec,
-    uint8_t (&_secBinary)[20000],
-    uint8_t (&_mapBinary)[20000],
-    int &_secBinaryLen,
-    int &_mapBinaryLen,
-    TFT_Display &_tftDisplay,
-    float &_ZOOM): 
-    mapBuffer(&_mapBuffer),
-    secBuffer(&_secBuffer),
-    receivingMap(&_receivingMap),
-    receivingSec(&_receivingSec),
-    secBinary(&_secBinary),
-    mapBinary(&_mapBinary),
-    secBinaryLen(&_secBinaryLen),
-    mapBinaryLen(&_mapBinaryLen),
-    tftDisplay(&_tftDisplay),
-    ZOOM(&_ZOOM) {}
+      String &_mapBuffer,
+      String &_secBuffer,
+      bool &_receivingMap,
+      bool &_receivingSec,
+      uint8_t (&_secBinary)[20000],
+      uint8_t (&_mapBinary)[20000],
+      int &_secBinaryLen,
+      int &_mapBinaryLen,
+      TFT_Display &_tftDisplay,
+      float &_ZOOM) : mapBuffer(&_mapBuffer),
+                      secBuffer(&_secBuffer),
+                      receivingMap(&_receivingMap),
+                      receivingSec(&_receivingSec),
+                      secBinary(&_secBinary),
+                      mapBinary(&_mapBinary),
+                      secBinaryLen(&_secBinaryLen),
+                      mapBinaryLen(&_mapBinaryLen),
+                      tftDisplay(&_tftDisplay),
+                      ZOOM(&_ZOOM) {}
 
   void onWrite(BLECharacteristic *pCharacteristic)
   {
