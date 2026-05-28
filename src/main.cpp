@@ -11,8 +11,10 @@
 #include "QR.cpp"
 
 // Screens
-#include "navigation.cpp"
-#include "screens/WelcomeScreen.cpp"
+#include "headers/StateMachine.h"
+// #include "navigation.cpp"
+#include "headers/WelcomeScreen.h"
+#include "headers/ConfigScreen.h"
 
 #define SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
@@ -62,18 +64,21 @@ unsigned long currentMillis = millis();
 
 TFT_Display tftDisplay(sprite, mapBuffer, secBuffer, secBinaryLen, mapBinaryLen, deviceConnected, secBinary, mapBinary, ZOOM, heading_degrees);
 MyServerCallbacks serverCallbacks(tftDisplay, deviceConnected);
-WelcomeScreen welcomeScreen(sprite);
-ScreenNavigation navigation(tftDisplay, deviceConnected, currentMillis, receivingSec, receivingMap, secBinaryLen, mapBinaryLen, lastDrawTime);
+StateMachine stateManager(deviceConnected, currentMillis);
+WelcomeScreen welcomeScreen(sprite, stateManager);
+ConfigScreen configScreen(sprite, deviceConnected, stateManager);
+// ScreenNavigation navigation(tftDisplay, deviceConnected, currentMillis, receivingSec, receivingMap, secBinaryLen, mapBinaryLen, lastDrawTime);
+
+State *states[4] = {&welcomeScreen, &configScreen, nullptr, nullptr};
 
 #pragma endregion DependencyInjection
 
 void setup()
 {
-
+  delay(1000);
   Serial.begin(115200);
   Wire.begin(SDA_PIN, SCL_PIN); // ESP32 I2C pins
   Wire.setClock(400000);        // 400kHz Fast Mode (default is 100kHz)
-
   Serial.println("Starting");
   if (!mag.begin())
   {
@@ -120,25 +125,25 @@ void setup()
       mapBinaryLen,
       tftDisplay,
       ZOOM));
-  navigation.init();
+  // navigation.init();
   Serial.println("Characteristic defined! Now you can read it in your phone!");
 
   tft.init();
   tft.setRotation(0);
-  tft.fillScreen(TFT_BLACK);
+  // tft.fillScreen(TFT_BLACK);
 
-  // SPRITE (buffer)
-  sprite.createSprite(240, 240);
-  sprite.fillSprite(TFT_BLACK);
+  // // SPRITE (buffer)
+  // sprite.createSprite(240, 240);
+  // sprite.fillSprite(TFT_BLACK);
 
-  sprite.setTextColor(TFT_WHITE);
-  sprite.setTextSize(2);
-  sprite.setCursor(40, 120);
-  sprite.println("CONNECT DEVICE");
+  // sprite.setTextColor(TFT_WHITE);
+  // sprite.setTextSize(2);
+  // sprite.setCursor(40, 120);
+  // sprite.println("CONNECT DEVICE");
 
-  sprite.pushSprite(0, 0);
+  // sprite.pushSprite(0, 0);
 
-  welcomeScreen.init();
+  stateManager.init(states);
 }
 
 float smoothHeading = 0.0;
@@ -147,7 +152,7 @@ bool headingInitialized = false;
 void loop()
 {
   currentMillis = millis();
-
-  navigation.loop();
+  stateManager.loop();
+  // navigation.loop();
   
 }
