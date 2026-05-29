@@ -17,4 +17,6 @@ public:
   void setSelectedIndex(int index);
   int getSelectedIndex();
   int length();
+  void updateIcons(std::vector<const uint16_t*> newImages);
+  void updateItems(std::vector<String> newItems);
 };

@@ -20,19 +20,19 @@ public:
   void onConnect(BLEServer *pServer)
   {
     *deviceConnected = true;
-    display->showConnected();
+    // display->showConnected();
   }
 
   void onDisconnect(BLEServer *pServer)
   {
     *deviceConnected = false;
-    display->stopNavigation();
-    display->sprite->fillScreen(TFT_BLACK);
-    display->sprite->setTextColor(TFT_WHITE);
-    display->sprite->setTextSize(2);
-    display->sprite->setCursor(40, 120);
-    display->sprite->println("CONNECT DEVICE");
-    display->sprite->pushSprite(0, 0);
+    // display->stopNavigation();
+    // display->sprite->fillScreen(TFT_BLACK);
+    // display->sprite->setTextColor(TFT_WHITE);
+    // display->sprite->setTextSize(2);
+    // display->sprite->setCursor(40, 120);
+    // display->sprite->println("CONNECT DEVICE");
+    // display->sprite->pushSprite(0, 0);
     BLEDevice::startAdvertising(); // restart advertising
   }
 };

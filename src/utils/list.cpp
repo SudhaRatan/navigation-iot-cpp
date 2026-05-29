@@ -69,3 +69,11 @@ int List::length()
 {
   return items.size();
 }
+
+void List::updateIcons(std::vector<const uint16_t*> newImages){
+  images = newImages;
+}
+
+void List::updateItems(std::vector<String> newItems){
+  items = newItems;
+}

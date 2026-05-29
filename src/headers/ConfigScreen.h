@@ -7,6 +7,7 @@ class ConfigScreen : public State
 private:
   TFT_eSprite *tft;
   bool *deviceConnected;
+  bool prevConnected = deviceConnected ? true : false;
   StateMachine *stateManager;
   List* list = nullptr;
 
