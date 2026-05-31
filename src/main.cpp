@@ -8,7 +8,6 @@
 #include <SPI.h>
 #include <MPU6500_Raw.h>
 #include "ble.cpp"
-#include "QR.cpp"
 
 // Screens
 #include "headers/StateMachine.h"
@@ -33,8 +32,6 @@ TFT_eSprite sprite = TFT_eSprite(&tft); // framebuffer
 
 Adafruit_HMC5883_Unified mag = Adafruit_HMC5883_Unified(12345);
 MPU6500 mpu;
-
-QRCodeGenerator qrGenerator(sprite);
 
 #pragma region GlobalStates
 String mapBuffer = "";
@@ -62,11 +59,12 @@ unsigned long currentMillis = millis();
 
 #pragma region DependencyInjection
 
+BLEService *pService = nullptr;
 TFT_Display tftDisplay(sprite, mapBuffer, secBuffer, secBinaryLen, mapBinaryLen, deviceConnected, secBinary, mapBinary, ZOOM, heading_degrees);
 MyServerCallbacks serverCallbacks(tftDisplay, deviceConnected);
 StateMachine stateManager(deviceConnected, currentMillis);
 WelcomeScreen welcomeScreen(sprite, stateManager);
-ConfigScreen configScreen(sprite, deviceConnected, stateManager);
+ConfigScreen configScreen(sprite, deviceConnected, stateManager, &pService);
 // ScreenNavigation navigation(tftDisplay, deviceConnected, currentMillis, receivingSec, receivingMap, secBinaryLen, mapBinaryLen, lastDrawTime);
 
 State *states[4] = {&welcomeScreen, &configScreen, nullptr, nullptr};
@@ -99,7 +97,7 @@ void setup()
   BLEDevice::init("MyESP32"); // set the device name
   BLEServer *pServer = BLEDevice::createServer();
   pServer->setCallbacks(&serverCallbacks);
-  BLEService *pService = pServer->createService(SERVICE_UUID);
+  pService = pServer->createService(SERVICE_UUID);
   BLECharacteristic *pCharacteristic = pService->createCharacteristic(
       CHARACTERISTIC_UUID,
       BLECharacteristic::PROPERTY_READ |
