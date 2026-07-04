@@ -1,6 +1,6 @@
 #include <BLEDevice.h>
 #include <BLEServer.h>
-#include "display.cpp"
+#include "headers/display.h"
 #include "mbedtls/base64.h"
 
 class MyServerCallbacks : public BLEServerCallbacks
@@ -25,6 +25,7 @@ public:
   void onDisconnect(BLEServer *pServer)
   {
     *deviceConnected = false;
+    display->stopNavigation();
     BLEDevice::startAdvertising(); // restart advertising
   }
 };

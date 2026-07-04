@@ -14,6 +14,7 @@
 // #include "navigation.cpp"
 #include "headers/WelcomeScreen.h"
 #include "headers/ConfigScreen.h"
+#include "headers/NavigationScreen.h"
 
 #define SERVICE_UUID "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
@@ -65,9 +66,10 @@ MyServerCallbacks serverCallbacks(tftDisplay, deviceConnected);
 StateMachine stateManager(deviceConnected, currentMillis);
 WelcomeScreen welcomeScreen(sprite, stateManager);
 ConfigScreen configScreen(sprite, deviceConnected, stateManager, &pService);
+NavigationScreen navigationScreen(sprite, deviceConnected, stateManager, &pService, tftDisplay, currentMillis, receivingSec, receivingMap, secBinaryLen, mapBinaryLen, lastDrawTime);
 // ScreenNavigation navigation(tftDisplay, deviceConnected, currentMillis, receivingSec, receivingMap, secBinaryLen, mapBinaryLen, lastDrawTime);
 
-State *states[4] = {&welcomeScreen, &configScreen, nullptr, nullptr};
+State *states[4] = {&welcomeScreen, &configScreen, &navigationScreen, nullptr};
 
 #pragma endregion DependencyInjection
 

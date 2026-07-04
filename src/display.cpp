@@ -1,22 +1,9 @@
 #pragma once
 #include <TFT_eSPI.h>
+#include "headers/display.h"
 
-class TFT_Display
-{
-private:
-  bool *deviceConnected;
-  String *mapBuffer;
-  String *secBuffer;
-  int *secBinaryLen = 0;
-  int *mapBinaryLen = 0;
-  uint8_t (*secBinary)[20000];
-  uint8_t (*mapBinary)[20000];
-  float *ZOOM;
-  float *heading_degrees;
-
-public:
-  TFT_eSprite *sprite;
-  TFT_Display(
+  
+  TFT_Display::TFT_Display(
       TFT_eSprite &_sprite,
       String &_mapBuffer,
       String &_secBuffer,
@@ -39,7 +26,7 @@ public:
   {
   }
 
-  void stopNavigation()
+  void TFT_Display::stopNavigation()
   {
     *mapBuffer = "";
     *secBuffer = "";
@@ -48,7 +35,7 @@ public:
     *mapBinaryLen = 0;
   }
 
-  void showConnected()
+  void TFT_Display::showConnected()
   {
     if (*deviceConnected)
     {
@@ -63,14 +50,7 @@ public:
     }
   }
 
-  // --- COHEN-SUTHERLAND CLIPPING ALGORITHM ---
-  const int INSIDE = 0; // 0000
-  const int LEFT = 1;   // 0001
-  const int RIGHT = 2;  // 0010
-  const int BOTTOM = 4; // 0100
-  const int TOP = 8;    // 1000
-
-  int computeOutCode(int16_t x, int16_t y)
+  int TFT_Display::computeOutCode(int16_t x, int16_t y)
   {
     int code = INSIDE;
 
@@ -87,7 +67,7 @@ public:
     return code;
   }
 
-  bool clipLine(int16_t &x0, int16_t &y0, int16_t &x1, int16_t &y1)
+  bool TFT_Display::clipLine(int16_t &x0, int16_t &y0, int16_t &x1, int16_t &y1)
   {
     int outcode0 = computeOutCode(x0, y0);
     int outcode1 = computeOutCode(x1, y1);
@@ -148,7 +128,7 @@ public:
     return accept;
   }
 
-  void drawSafeLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color)
+  void TFT_Display::drawSafeLine(int16_t x0, int16_t y0, int16_t x1, int16_t y1, uint16_t color)
   {
     if (clipLine(x0, y0, x1, y1))
     {
@@ -156,19 +136,8 @@ public:
     }
   }
 
-  // --- CAMERA ANIMATION GLOBALS ---
-  double targetRiderX = 0;
-  double targetRiderY = 0;
-  double currentRiderX = 0.0;
-  double currentRiderY = 0.0;
-
-  // --- GPS TO PIXEL CONVERSION GLOBALS ---
-  bool originSet = false;
-  double originLat = 0.0;
-  double originLon = 0.0;
-
   // ── Draw a filled quad between two segments (no loops, 2 triangles only) ──
-  inline void drawSegmentQuad(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
+  inline void TFT_Display::drawSegmentQuad(int16_t x0, int16_t y0, int16_t x1, int16_t y1,
                               uint16_t color, float halfW,
                               int16_t &lx0, int16_t &ly0, int16_t &rx0, int16_t &ry0,
                               int16_t &lx1, int16_t &ly1, int16_t &rx1, int16_t &ry1)
@@ -195,7 +164,7 @@ public:
   }
 
   // ── Filled polyline: quad per segment + join triangle between segments ──
-  void drawPolyFilled(int16_t *xs, int16_t *ys, int n, uint16_t color, float halfW)
+  void TFT_Display::drawPolyFilled(int16_t *xs, int16_t *ys, int n, uint16_t color, float halfW)
   {
     if (n < 2)
       return;
@@ -223,7 +192,7 @@ public:
 
   // ── Hollow polyline: 2 clipped lines per segment, no circles ──
   // Replace drawPolyHollow with this:
-  void drawPolyHollow(int16_t *xs, int16_t *ys, int n, uint16_t fillColor, uint16_t borderColor, float halfW)
+  void TFT_Display::drawPolyHollow(int16_t *xs, int16_t *ys, int n, uint16_t fillColor, uint16_t borderColor, float halfW)
   {
     if (n < 2)
       return;
@@ -274,12 +243,7 @@ public:
     }
   }
 
-  const int CX = 120, CY = 120;
-  const float MAIN_HALF = 8.0f;   // 8px total main route
-  const float SEC_HALF = 8.0f;    // 3px total secondary (hollow)
-  const int CAMERA_OFFSET_Y = 35; // positive = move camera up (rider goes down)
-
-  void drawSecondaryRoads()
+  void TFT_Display::drawSecondaryRoads()
   {
     // ── Shared screen-space buffers — no allocation per frame ──
     int16_t _scrX[1024], _scrY[1024];
@@ -432,4 +396,3 @@ public:
 
     sprite->pushSprite(0, 0);
   }
-};
